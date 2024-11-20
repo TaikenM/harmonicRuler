@@ -24,7 +24,7 @@ int stepDif = 5;  // ステップの差分
 double setpoint = 100;  // 目標速度 (RPM)
 
 // ソレノイドに関する定数
-int solenoidOnTime = 100;  // ソレノイドのオン時間 (ミリ秒)
+int solenoidOnTime = 500;  // ソレノイドのオン時間 (ミリ秒)
 
 // ピンの初期化
 void initializePins() {
@@ -57,9 +57,9 @@ void performTuning() {
 
 // ソレノイドの作動
 void activateSolenoid() {
-    digitalWrite(solenoidPin, LOW);
-    delay(solenoidOnTime);
     digitalWrite(solenoidPin, HIGH);
+    delay(solenoidOnTime);
+    digitalWrite(solenoidPin, LOW);
 }
 
 // モーターの位置保持
