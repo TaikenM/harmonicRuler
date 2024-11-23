@@ -13,7 +13,7 @@ const int solenoidPin = 12;
 const int motorPWM = 6;
 
 // ステッピングモーターに関する定数
-double stepperSpeed = 30;  // ステッピングモーターの速度 (RPM)
+double stepperSpeed = 10;  // ステッピングモーターの速度 (RPM)
 
 // ソレノイドに関する定数
 int solenoidOnTime = 100;  // ソレノイドのオン時間 (ミリ秒)
