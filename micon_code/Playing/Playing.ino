@@ -4,7 +4,7 @@
 #include <AccelStepper.h>
 
 const int stepsPerRevolution = 200;  // 1回転あたりのステップ数
-Stepper stepper(AccelStepper::FULL4WIRE, 10, 8, 9, 7);  // ステッピングモーターオブジェクトの作成
+AccelStepper stepper(AccelStepper::FULL4WIRE, 10, 8, 9, 7);  // ステッピングモーターオブジェクトの作成
 
 // ソレノイドのピン
 const int solenoidPin = 12;
@@ -13,9 +13,9 @@ const int solenoidPin = 12;
 const int motorPWM = 6;
 
 // ステッピングモーターに関する定数
-const double stepperRPM = 30;  // ステッピングモーターの速度 (RPM)
+const double stepperRPM = 200;  // ステッピングモーターの速度 (RPM)
 const double stepperSpeed = stepperRPM * stepsPerRevolution / 60;  // ステッピングモーターの速度 (ステップ/秒)
-const double stepperAccel = 100;  // ステッピングモーターの加速度 (ステップ/秒^2)
+const double stepperAccel = 500;  // ステッピングモーターの加速度 (ステップ/秒^2)
 int currentNoteNum = 0;
 int noteStartTime = 0;
 
@@ -37,6 +37,8 @@ void initializePins() {
 void stepperSetup() {
     stepper.setMaxSpeed(stepperSpeed);
     stepper.setAcceleration(stepperAccel);
+    stepper.moveTo(kirakiraboshiData[currentNoteNum].steps);
+    noteStartTime = millis();
 }
 
 // ソレノイドの作動
@@ -48,6 +50,7 @@ void activateSolenoid() {
 }
 
 void updateSolenoid() {
+    Serial.println(millis() - soleStartTime);
     if (millis() - soleStartTime >= solenoidOnTime) {
         Serial.println("Solenoid OFF");
         digitalWrite(solenoidPin, HIGH);
@@ -65,11 +68,13 @@ void setup() {
 
 void playSong(){
     unsigned long currentMillis = millis();
+    //Serial.println("play called");
     stepper.run();
     updateSolenoid();
     
-    if (stepper.distanceToGo() == 0){
-        if (currentMillis - noteStartTime >= kirakiraboshiData[currentNoteNum].duration){
+    if (currentMillis - noteStartTime >= kirakiraboshiData[currentNoteNum].duration){
+        
+        if (stepper.distanceToGo() == 0){
             noteStartTime = currentMillis;
             activateSolenoid();
             currentNoteNum++;
@@ -77,9 +82,13 @@ void playSong(){
                 currentNoteNum = 0;
             }
 
+        } else {
+            Serial.println("too late");
         }
+        
     }
 }
+
 
 void loop() {
     // モーターの速度制御
