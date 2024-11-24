@@ -4,7 +4,7 @@
 
 // set the tempo
 
-const uint16_t tempo = 10; // 60 bpm
+const uint16_t tempo = 10; // 
 // notes data structure
 typedef struct {
     uint8_t steps; // midi note number

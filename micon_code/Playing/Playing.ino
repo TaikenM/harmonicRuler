@@ -13,14 +13,14 @@ const int solenoidPin = 12;
 const int motorPWM = 6;
 
 // ステッピングモーターに関する定数
-const double stepperRPM = 200;  // ステッピングモーターの速度 (RPM)
+const double stepperRPM = 30;  // ステッピングモーターの速度 (RPM)
 const double stepperSpeed = stepperRPM * stepsPerRevolution / 60;  // ステッピングモーターの速度 (ステップ/秒)
-const double stepperAccel = 500;  // ステッピングモーターの加速度 (ステップ/秒^2)
+const double stepperAccel = 100;  // ステッピングモーターの加速度 (ステップ/秒^2)
 int currentNoteNum = 0;
-int noteStartTime = 0;
+unsigned long noteStartTime = 0;  // 修正: noteStartTimeのデータ型をunsigned longに変更
 
 // ソレノイドに関する定数
-int solenoidOnTime = 100;  // ソレノイドのオン時間 (ミリ秒)
+int solenoidOnTime = 300;  // ソレノイドのオン時間 (ミリ秒)
 unsigned long soleStartTime = 0;  // ソレノイドの作動開始時間
 bool sol = false;
 
@@ -31,6 +31,7 @@ double setpoint = tempo;  // 目標速度 (RPM)
 void initializePins() {
     pinMode(solenoidPin, OUTPUT);
     pinMode(motorPWM, OUTPUT);
+    digitalWrite(solenoidPin, HIGH);  // 初期状態をOFFにしておく
 }
 
 // ステッピングモーターの初期設定
@@ -50,12 +51,10 @@ void activateSolenoid() {
 }
 
 void updateSolenoid() {
-    Serial.println(millis() - soleStartTime);
-    if (millis() - soleStartTime >= solenoidOnTime) {
+    if (sol && (millis() - soleStartTime >= solenoidOnTime)) {
         Serial.println("Solenoid OFF");
         digitalWrite(solenoidPin, HIGH);
         sol = false;
-        stepper.moveTo(kirakiraboshiData[currentNoteNum].steps);
     }
 }
 
@@ -68,27 +67,30 @@ void setup() {
 
 void playSong(){
     unsigned long currentMillis = millis();
-    //Serial.println("play called");
-    stepper.run();
-    updateSolenoid();
-    
-    if (currentMillis - noteStartTime >= kirakiraboshiData[currentNoteNum].duration){
-        
-        if (stepper.distanceToGo() == 0){
+    stepper.run();  // ステッピングモーターを動作させる
+    updateSolenoid();  // ソレノイドの状態を更新
+
+    // 音符の持続時間を確認
+    if (currentMillis - noteStartTime >= kirakiraboshiData[currentNoteNum].duration * 1000 * 60 / (tempo * 4)) {
+        if (stepper.distanceToGo() == 0) {
             noteStartTime = currentMillis;
-            activateSolenoid();
+            activateSolenoid();  // 次の音符に合わせてソレノイドをアクチュエート
             currentNoteNum++;
-            if (currentNoteNum == sizeof(kirakiraboshiData)/sizeof(kirakiraboshiData[0])){
+            
+            // 曲の終わりに達した場合、最初に戻る
+            if (currentNoteNum == sizeof(kirakiraboshiData) / sizeof(kirakiraboshiData[0])) {
                 currentNoteNum = 0;
             }
-
+            
+            // ステッピングモーターの次の目標位置を設定
+            stepper.moveTo(kirakiraboshiData[currentNoteNum].steps);
+            Serial.print("Moving to note: ");
+            Serial.println(currentNoteNum);
         } else {
-            Serial.println("too late");
+            Serial.println("Stepper still moving to target.");
         }
-        
     }
 }
-
 
 void loop() {
     // モーターの速度制御
