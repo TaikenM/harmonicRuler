@@ -13,24 +13,29 @@ const int solenoidPin = 12;
 const int motorPWM = 6;
 
 // ステッピングモーターに関する定数
-const double stepperRPM = 30;  // ステッピングモーターの速度 (RPM)
+const double stepperRPM = 200;  // ステッピングモーターの速度 (RPM)
 const double stepperSpeed = stepperRPM * stepsPerRevolution / 60;  // ステッピングモーターの速度 (ステップ/秒)
-const double stepperAccel = 100;  // ステッピングモーターの加速度 (ステップ/秒^2)
+const double stepperAccel = 500;  // ステッピングモーターの加速度 (ステップ/秒^2)
 int currentNoteNum = 0;
 unsigned long noteStartTime = 0;  // 修正: noteStartTimeのデータ型をunsigned longに変更
+bool songFinished = false;
 
 // ソレノイドに関する定数
-int solenoidOnTime = 300;  // ソレノイドのオン時間 (ミリ秒)
+int solenoidOnTime = 100;  // ソレノイドのオン時間 (ミリ秒)
 unsigned long soleStartTime = 0;  // ソレノイドの作動開始時間
 bool sol = false;
 
 // モーターの速度制御に関する変数
 double setpoint = tempo;  // 目標速度 (RPM)
+//int encoderPinA;
+//int encoderPinB;
 
 // ピンの初期化
 void initializePins() {
     pinMode(solenoidPin, OUTPUT);
     pinMode(motorPWM, OUTPUT);
+    pinMode(encoderPinA, INPUT);
+    pinMode(encoderPinB, INPUT);
     digitalWrite(solenoidPin, HIGH);  // 初期状態をOFFにしておく
 }
 
@@ -60,26 +65,34 @@ void updateSolenoid() {
 
 void setup() {
     initializePins(); // ピンの初期化
+    setupInterrupts(encoderPinA, encoderPinB);  // 割り込みの設定
     Serial.begin(9600);
     stepperSetup(); // ステッピングモーターの初期設定
     setpoint = tempo;  // モーターの回転速度を設定 (RPM)
 }
 
 void playSong(){
+    if (songFinished) {
+        return;  // 曲が終了した場合、何もしない
+    }
+
     unsigned long currentMillis = millis();
     stepper.run();  // ステッピングモーターを動作させる
     updateSolenoid();  // ソレノイドの状態を更新
 
     // 音符の持続時間を確認
-    if (currentMillis - noteStartTime >= kirakiraboshiData[currentNoteNum].duration * 1000 * 60 / (tempo * 4)) {
+    if (currentMillis - noteStartTime >= kirakiraboshiData[currentNoteNum].duration * (1000 * 60 ) / (4 * tempo)) {
         if (stepper.distanceToGo() == 0) {
             noteStartTime = currentMillis;
             activateSolenoid();  // 次の音符に合わせてソレノイドをアクチュエート
             currentNoteNum++;
             
-            // 曲の終わりに達した場合、最初に戻る
+            // 曲の終わりに達した場合、停止する
             if (currentNoteNum == sizeof(kirakiraboshiData) / sizeof(kirakiraboshiData[0])) {
                 currentNoteNum = 0;
+                songFinished = true;
+                Serial.println("Song finished");
+                return;
             }
             
             // ステッピングモーターの次の目標位置を設定
@@ -94,10 +107,12 @@ void playSong(){
 
 void loop() {
     // モーターの速度制御
-    if (shouldUpdateControl()) {
+    if (!songFinished && shouldUpdateControl()) {
         updateSpeed();
         calculatePDControl();
         setMotorOutput(motorPWM);
+        printDebugInfo();
+        
     }
 
     playSong();
