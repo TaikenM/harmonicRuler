@@ -1,10 +1,10 @@
 #include <Arduino.h>
 #include "motor_control_utils.h"
 #include "kirakiraboshi.h"
-#include <Stepper.h>
+#include <AccelStepper.h>
 
 const int stepsPerRevolution = 200;  // 1回転あたりのステップ数
-Stepper stepper(stepsPerRevolution, 7, 9, 8, 10);  // ステッピングモーターオブジェクトの作成
+Stepper stepper(AccelStepper::FULL4WIRE, 10, 8, 9, 7);  // ステッピングモーターオブジェクトの作成
 
 // ソレノイドのピン
 const int solenoidPin = 12;
@@ -13,10 +13,16 @@ const int solenoidPin = 12;
 const int motorPWM = 6;
 
 // ステッピングモーターに関する定数
-double stepperSpeed = 10;  // ステッピングモーターの速度 (RPM)
+const double stepperRPM = 30;  // ステッピングモーターの速度 (RPM)
+const double stepperSpeed = stepperRPM * stepsPerRevolution / 60;  // ステッピングモーターの速度 (ステップ/秒)
+const double stepperAccel = 100;  // ステッピングモーターの加速度 (ステップ/秒^2)
+int currentNoteNum = 0;
+int noteStartTime = 0;
 
 // ソレノイドに関する定数
 int solenoidOnTime = 100;  // ソレノイドのオン時間 (ミリ秒)
+unsigned long soleStartTime = 0;  // ソレノイドの作動開始時間
+bool sol = false;
 
 // モーターの速度制御に関する変数
 double setpoint = tempo;  // 目標速度 (RPM)
@@ -29,14 +35,25 @@ void initializePins() {
 
 // ステッピングモーターの初期設定
 void stepperSetup() {
-    stepper.setSpeed(stepperSpeed);
+    stepper.setMaxSpeed(stepperSpeed);
+    stepper.setAcceleration(stepperAccel);
 }
 
 // ソレノイドの作動
 void activateSolenoid() {
+    Serial.println("Solenoid ON");
     digitalWrite(solenoidPin, LOW);
-    delay(solenoidOnTime);
-    digitalWrite(solenoidPin, HIGH);
+    soleStartTime = millis();
+    sol = true;
+}
+
+void updateSolenoid() {
+    if (millis() - soleStartTime >= solenoidOnTime) {
+        Serial.println("Solenoid OFF");
+        digitalWrite(solenoidPin, HIGH);
+        sol = false;
+        stepper.moveTo(kirakiraboshiData[currentNoteNum].steps);
+    }
 }
 
 void setup() {
@@ -44,6 +61,24 @@ void setup() {
     Serial.begin(9600);
     stepperSetup(); // ステッピングモーターの初期設定
     setpoint = tempo;  // モーターの回転速度を設定 (RPM)
+}
+
+void playSong(){
+    unsigned long currentMillis = millis();
+    stepper.run();
+    updateSolenoid();
+    
+    if (stepper.distanceToGo() == 0){
+        if (currentMillis - noteStartTime >= kirakiraboshiData[currentNoteNum].duration){
+            noteStartTime = currentMillis;
+            activateSolenoid();
+            currentNoteNum++;
+            if (currentNoteNum == sizeof(kirakiraboshiData)/sizeof(kirakiraboshiData[0])){
+                currentNoteNum = 0;
+            }
+
+        }
+    }
 }
 
 void loop() {
@@ -54,31 +89,5 @@ void loop() {
         setMotorOutput(motorPWM);
     }
 
-    // きらきら星の演奏
-    for (int i = 0; i < kirakiraboshiDataSize; i++) {
-        
-        int steps = kirakiraboshiData[i].steps;
-        int duration = kirakiraboshiData[i].duration * 15000 / tempo ;  // テンポに合わせて音符の持続時間を計算
-
-        if (i == 0) {
-            // 最初の音符の場合はステッピングモーターを初期位置に戻す
-            stepper.step(steps);
-        }
-
-        // ソレノイドをオンにする（音を鳴らす）
-        activateSolenoid();
-
-        // 次の音程にステッピングモーターを合わせる
-        if (i < kirakiraboshiDataSize - 1) {
-            int nextSteps = kirakiraboshiData[i + 1].steps;
-            stepper.step(nextSteps - steps);  // 次の音程に合わせるためのステップ
-            Serial.println(nextSteps);
-        }
-
-        // 音の持続時間待機
-        delay(duration - solenoidOnTime);
-    }
-
-    // 曲が終わったら少し待機
-    delay(1000);
+    playSong();
 }
